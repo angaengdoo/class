@@ -396,8 +396,7 @@
                 return;
             }
             fetchSubmissions();
-            if (pollingInterval) clearInterval(pollingInterval);
-            pollingInterval = setInterval(fetchSubmissions, 30000);
+            // 자동 폴링 제거 - 수동 새로고침 버튼으로만 갱신
         };
 
         const fetchSubmissions = async () => {
@@ -446,8 +445,7 @@
             if (!currentClassCode) { alert('반 코드가 설정되지 않았습니다.'); return; }
             if (!confirm(`"${name}" 학생의 제출 기록을 삭제할까요?`)) return;
             try {
-                const params = new URLSearchParams({ action: 'deleteOne', classCode: currentClassCode, studentName: name });
-                const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: params });
+                const res = await fetch(APPS_SCRIPT_URL + '?action=deleteOne&classCode=' + encodeURIComponent(currentClassCode) + '&studentName=' + encodeURIComponent(name));
                 const result = await res.json();
                 if (result.status !== 'ok') throw new Error(result.message);
                 const detailEl = document.getElementById('detail-view');
@@ -462,8 +460,7 @@
             if (!currentClassCode) { alert('반 코드가 설정되지 않았습니다.'); return; }
             if (!confirm(`[${currentClassCode}] 반의 모든 제출 기록을 초기화할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
             try {
-                const params = new URLSearchParams({ action: 'deleteAll', classCode: currentClassCode });
-                const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: params });
+                const res = await fetch(APPS_SCRIPT_URL + '?action=deleteAll&classCode=' + encodeURIComponent(currentClassCode));
                 const result = await res.json();
                 if (result.status !== 'ok') throw new Error(result.message);
                 const detailEl = document.getElementById('detail-view');
