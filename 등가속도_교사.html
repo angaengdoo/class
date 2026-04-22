@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ko" style="font-size: 120%;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>속력이 변하는 운동 분석하기 (교사용 통합본)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        @keyframes draw { from { stroke-dasharray: 0 150; } to { stroke-dasharray: 150 0; } }
+        .animate-draw { animation: draw 1.5s ease-out forwards; stroke-dasharray: 150; }
+        .transition-all { transition: all 0.3s ease; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .hidden-content { display: none !important; }
+        .bounce-slow { animation: bounce 3s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        
+        table td, table th { padding: 0.75rem !important; }
+        input { font-size: 1rem !important; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        /* 그래프 영역 레이아웃 - 가로 나란히 배치 및 라벨 위치 수정 */
+        .graph-outer-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2rem;
+            width: 100%;
+            padding: 1rem;
+        }
+        .graph-area-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #f8fafc;
+            padding: 50px 30px 20px 60px; /* 라벨 공간 확보 */
+            border-radius: 2rem;
+            border: 1px solid #e2e8f0;
+            width: 380px; /* 박스 크기 축소 */
+        }
+        .graph-wrapper {
+            position: relative;
+            width: 250px; /* 그래프 자체 크기 축소 */
+            height: 250px;
+            background: white;
+        }
+        /* Y축 라벨: 숫자 10 위로 */
+        .axis-label-y { position: absolute; left: -50px; top: -35px; font-size: 0.75rem; font-weight: 900; color: #64748b; white-space: nowrap; }
+        /* X축 라벨: 숫자 5 아래로 */
+        .axis-label-x { position: absolute; right: -20px; bottom: -50px; font-size: 0.75rem; font-weight: 900; color: #64748b; white-space: nowrap; }
+        
+        .tick-y { position: absolute; left: -35px; width: 30px; text-align: right; font-size: 0.8rem; font-weight: 700; color: #94a3b8; transform: translateY(50%); }
+        .tick-x { position: absolute; bottom: -35px; width: 25px; text-align: center; font-size: 0.8rem; font-weight: 700; color: #94a3b8; transform: translateX(-50%); }
+        
+        .graph-box-border {
+            position: absolute;
+            inset: 0;
+            border-left: 2px solid #334155;
+            border-bottom: 2px solid #334155;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .guide-text-bottom { margin-top: 50px; font-size: 0.7rem; font-weight: 800; color: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <!-- ⚠️ Apps Script URL 미설정 안내 배너 -->
+    <div id="setup-banner" class="hidden-content bg-amber-400 text-amber-900 px-6 py-3 flex items-center justify-center gap-3 text-sm font-bold sticky top-0 z-50 shadow">
+        <span>⚙️ APPS_SCRIPT_URL 설정이 필요합니다 — 학생 제출 목록이 비활성화 상태 | HTML 파일 상단 스크립트에서 URL을 입력해주세요</span>
+    </div>
+
+    <!-- 반 코드 입력 시작 화면 -->
+    <div id="class-code-screen" class="fixed inset-0 bg-slate-800/80 z-50 flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8 max-w-md w-full mx-4 border-4 border-emerald-500">
+            <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                <i data-lucide="key-round" class="w-10 h-10"></i>
+            </div>
+            <div class="space-y-2">
+                <h2 class="text-3xl font-black text-slate-800">반 코드 입력</h2>
+                <p class="text-lg font-bold text-slate-500 leading-relaxed">수업에 사용할 반 코드를 입력하세요.<br>학생들도 동일한 코드를 사용해야 합니다.</p>
+            </div>
+            <input type="text" id="teacher-class-code" class="w-full bg-slate-100 border-none rounded-2xl p-5 focus:ring-4 focus:ring-emerald-400 font-black text-3xl text-emerald-600 shadow-inner text-center tracking-widest" placeholder="예: 3반1교시">
+            <button onclick="window.startWithClassCode()" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black text-xl hover:bg-emerald-700 transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3">
+                <i data-lucide="log-in" class="w-6 h-6"></i> 시작하기
+            </button>
+            <p class="text-sm text-slate-400 font-bold">반 코드는 숫자, 한글, 영어 모두 가능합니다</p>
+        </div>
+    </div>
+
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white border-b h-20 flex items-center px-6 sticky top-0 z-40 shadow-sm">
+            <div class="max-w-[1600px] mx-auto w-full flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <span class="bg-emerald-500 text-white font-black px-3 py-1 rounded shadow-sm text-base">IV</span>
+                    <h1 class="font-bold text-xl hidden lg:block text-slate-700 tracking-tight">4. 속력이 변하는 운동 (교사용)</h1>
+                    <span id="class-code-badge" class="hidden bg-emerald-100 text-emerald-700 font-black px-3 py-1 rounded-xl text-sm border border-emerald-200"></span>
+                </div>
+                <nav class="flex bg-slate-100 p-1.5 rounded-xl">
+                    <button onclick="window.changeStage('도입')" class="stage-btn px-6 py-1.5 rounded-lg font-bold transition-all bg-white text-emerald-600 shadow-sm" data-stage="도입">도입</button>
+                    <button onclick="window.changeStage('활동하기')" class="stage-btn px-6 py-1.5 rounded-lg font-bold transition-all text-slate-400 hover:text-slate-600" data-stage="활동하기">활동하기</button>
+                    <button onclick="window.changeStage('정리')" class="stage-btn px-6 py-1.5 rounded-lg font-bold transition-all text-slate-400 hover:text-slate-600" data-stage="정리">정리</button>
+                    <button onclick="window.changeStage('결과 확인')" class="stage-btn px-6 py-1.5 rounded-lg font-bold transition-all text-slate-400 hover:text-slate-600 flex items-center gap-2" data-stage="결과 확인">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i> 결과 확인
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <main class="max-w-[1600px] mx-auto w-full p-6 lg:p-10 flex flex-col gap-8 flex-1">
+            <div id="lesson-sections">
+                <!-- 도입 섹션 -->
+                <section id="intro-section" class="flex flex-col items-center text-center gap-12 py-12">
+                    <div class="w-full max-w-3xl space-y-6 text-center" id="intro-tracks"></div>
+                    <div class="space-y-8 max-w-5xl px-4 text-center">
+                        <h2 class="text-4xl md:text-5xl font-black text-slate-900 leading-tight">직선상에서 속력이 일정하게 변하는 물체의 운동 분석하기</h2>
+                        <p class="text-xl md:text-2xl text-slate-500 leading-relaxed font-medium">자동차의 운동을 시간-속력 그래프로 나타내고 해석해 봅시다.</p>
+                        <button onclick="window.changeStage('활동하기')" class="bg-emerald-600 text-white px-20 py-5 rounded-2xl font-black text-2xl hover:bg-emerald-700 shadow-2xl transition-all hover:-translate-y-1 mt-4">탐구 시작하기</button>
+                    </div>
+                </section>
+
+                <!-- 활동하기 섹션 -->
+                <section id="activity-section" class="hidden-content grid grid-cols-1 lg:grid-cols-12 gap-10 text-center">
+                    <div class="lg:col-span-8 space-y-8">
+                        <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden text-center">
+                            <div class="bg-slate-50 px-10 py-6 border-b flex items-center justify-between text-center">
+                                <h3 class="font-black text-slate-700 flex items-center gap-4 text-xl" id="activity-title"></h3>
+                                <div class="flex gap-3 text-center" id="step-indicators"></div>
+                            </div>
+                            <div class="p-8 space-y-8 text-center">
+                                <div id="sim-controls" class="flex justify-center gap-6 mb-4">
+                                    <button onclick="window.startSim()" class="bg-emerald-600 text-white px-8 py-3 rounded-full font-bold shadow-md active:scale-95 transition-all text-center"><i data-lucide="play" class="inline w-5 h-5 mr-2"></i>시뮬레이션 시작</button>
+                                    <button onclick="window.resetSim()" class="bg-white border px-8 py-3 rounded-full font-bold text-slate-600 shadow-sm active:scale-95 transition-all text-center"><i data-lucide="rotate-ccw" class="inline w-5 h-5 mr-2"></i>초기화</button>
+                                </div>
+                                <div id="activity-tracks" class="space-y-4 text-center"></div>
+                                <div class="bg-slate-50 p-6 sm:p-8 rounded-[2rem] border shadow-inner">
+                                    <div id="step-content-area" class="text-center overflow-x-auto"></div>
+                                    <div class="flex justify-center mt-6 gap-4">
+                                        <button onclick="window.toggleAnswer()" id="check-answer-btn" class="bg-white border-2 border-emerald-600 text-emerald-600 px-10 py-4 rounded-2xl font-black shadow-sm active:scale-95 transition-all text-center"><i data-lucide="check-circle-2" class="inline w-6 h-6 mr-2"></i>정답 확인</button>
+                                        <button onclick="window.resetInputs()" id="reset-inputs-btn" class="hidden-content bg-white border-2 border-red-200 text-red-500 px-10 py-4 rounded-2xl font-black shadow-sm active:scale-95 transition-all text-center"><i data-lucide="refresh-cw" class="inline w-6 h-6 mr-2"></i>초기화</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-slate-50 p-8 border-t flex items-center justify-between text-center">
+                                <button onclick="window.prevStep()" class="px-8 py-4 bg-white border-2 border-slate-200 text-slate-600 rounded-2xl font-black text-xl hover:bg-slate-50 shadow-sm flex items-center gap-3"><i data-lucide="chevron-left" class="w-7 h-7"></i> 이전 단계로</button>
+                                <button onclick="window.nextStep()" id="next-step-btn" class="px-12 py-4 bg-slate-800 text-white rounded-2xl font-black text-xl shadow-xl hover:bg-slate-700 active:scale-95 flex items-center gap-3">다음 단계로 <i data-lucide="chevron-right" class="w-7 h-7"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-4 space-y-8">
+                        <div id="guide-area" class="bg-white rounded-[3rem] p-10 shadow-sm border text-center">
+                            <div class="bg-slate-50 p-8 rounded-[2rem] border-2 border-emerald-100 relative mb-8 text-center">
+                                <p id="guide-message" class="text-xl font-bold text-slate-600 leading-relaxed text-center"></p>
+                                <div class="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-6 h-6 bg-slate-50 border-r-2 border-b-2 border-emerald-100 rotate-45 text-center"></div>
+                            </div>
+                            <div id="char-container" class="bounce-slow py-4 text-center"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="summary-section" class="hidden-content grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in slide-in-from-bottom-8 duration-700 text-center">
+                    <div class="lg:col-span-8">
+                        <div class="bg-white rounded-[3.5rem] shadow-2xl overflow-hidden border border-slate-200 text-center">
+                            <div class="bg-emerald-600 p-12 text-white text-center"><h2 class="text-4xl font-black mb-3 tracking-tight">학습 내용 정리하기</h2><div class="h-1.5 w-20 bg-white/40 rounded-full mx-auto text-center"></div></div>
+                            <div class="p-12 space-y-10">
+                                <div class="space-y-8 text-left">
+                                    <h3 class="text-2xl font-bold text-slate-700 flex items-start gap-4 text-center">
+                                        <span id="summary-num" class="bg-emerald-100 text-emerald-600 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-center">1</span>
+                                        <span id="summary-question"></span>
+                                    </h3>
+                                    <textarea id="summary-textarea" class="w-full h-48 p-8 rounded-[2.5rem] border-2 border-slate-200 focus:border-emerald-500 focus:outline-none text-xl transition-all text-center" placeholder="자신의 생각을 입력해보세요."></textarea>
+                                    <div id="summary-answer-box" class="hidden-content bg-emerald-50 p-8 rounded-[2.5rem] border-2 border-emerald-100 animate-in fade-in zoom-in text-center">
+                                        <h4 class="font-black text-emerald-700 flex items-center gap-3 mb-4 text-xl text-center"><i data-lucide="check-circle-2" class="w-6 h-6 text-center"></i> 모범 답안</h4>
+                                        <p id="summary-answer-text" class="text-lg text-slate-700 leading-relaxed font-medium text-center"></p>
+                                    </div>
+                                </div>
+                                <div class="flex justify-center gap-4 pt-4 text-center">
+                                    <button onclick="window.toggleSummaryAnswer()" id="sum-check-btn" class="flex items-center justify-center gap-3 px-12 py-4 rounded-2xl font-black transition-all shadow-md bg-white border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 text-xl text-center"><i data-lucide="check-circle-2" class="w-6 h-6 text-center"></i> 정답 확인</button>
+                                    <button onclick="window.resetSummaryText()" id="sum-reset-btn" class="hidden-content px-12 py-4 bg-white border-2 border-red-200 text-red-500 rounded-2xl font-black hover:bg-red-50 transition-all flex items-center justify-center gap-3 text-xl text-center"><i data-lucide="refresh-cw" class="w-6 h-6 text-center"></i> 다시 쓰기</button>
+                                </div>
+                            </div>
+                            <div class="bg-slate-50 p-10 border-t flex items-center justify-between text-center">
+                                <button onclick="window.prevSummary()" class="px-8 py-4 bg-white border-2 border-slate-200 text-slate-600 rounded-2xl font-black text-xl hover:bg-slate-50 shadow-sm flex items-center gap-3"><i data-lucide="chevron-left" class="w-7 h-7 text-center"></i> 이전 단계로</button>
+                                <button onclick="window.nextSummary()" id="sum-next-btn" class="px-12 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xl shadow-xl hover:bg-emerald-700 active:scale-95 flex items-center justify-center gap-3 text-center"></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-4">
+                        <div class="bg-white rounded-[3rem] p-10 shadow-sm border text-center">
+                            <div class="bg-slate-50 p-8 rounded-[2rem] border-2 border-emerald-100 relative mb-8 text-center"><p class="text-lg font-bold text-slate-600 leading-relaxed min-h-[100px] text-center" id="summary-guide-msg"></p><div class="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-6 h-6 bg-slate-50 border-r-2 border-b-2 border-emerald-100 rotate-45 text-center"></div></div>
+                            <div id="summary-char-container" class="bounce-slow text-center"></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 결과 확인 대시보드 -->
+            <section id="results-section" class="hidden-content grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 animate-in fade-in">
+                <aside class="lg:col-span-3 text-center">
+                    <div class="bg-white rounded-3xl p-6 shadow-sm border h-[calc(100vh-180px)] flex flex-col text-center text-center">
+                        <div class="flex items-center justify-between mb-4 px-2">
+                            <h2 class="font-black text-slate-400 text-xs uppercase tracking-widest">제출 학생</h2>
+                            <div class="flex items-center gap-2">
+                                <span id="student-count" class="bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-xs font-black">0명</span>
+                                <button onclick="window.fetchSubmissions()" title="새로고침" class="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-emerald-600 transition-all"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
+                                <button onclick="window.deleteAll()" title="전체 초기화" class="p-1.5 rounded-full hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                        <div id="student-list" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar text-center text-center">
+                            <div class="text-center py-10 text-slate-300 text-center"><i data-lucide="loader-2" class="w-10 h-10 mx-auto mb-2 animate-spin text-center"></i><p class="text-sm font-bold text-center">데이터 확인 중...</p></div>
+                        </div>
+                    </div>
+                </aside>
+                <section class="lg:col-span-9 text-center text-center text-center">
+                    <div id="detail-view" class="bg-white rounded-[2.5rem] shadow-sm border h-[calc(100vh-180px)] overflow-y-auto p-10 flex flex-col items-center justify-center text-slate-300 text-center text-center">
+                        <div class="text-center space-y-6 text-center text-center">
+                            <i data-lucide="mouse-pointer-click" class="w-16 h-16 mx-auto opacity-20 text-center text-center"></i>
+                            <h3 class="text-2xl font-black text-center text-center">학생을 선택하여 결과를 확인하세요</h3>
+                        </div>
+                    </div>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <!-- Google Sheets & App Logic -->
+    <script>
+        // ★★★ 아래 URL을 Apps Script 배포 후 받은 웹앱 URL로 교체하세요 ★★★
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyQqr8wuMZOrzs1zjZSEE6gswQf9PZs4_FtG8csoOrZoNZoxz0bvjUrFQEutSVYcl2O/exec';
+
+        let currentClassCode = '';
+
+        window.startWithClassCode = () => {
+            const code = document.getElementById('teacher-class-code').value.trim();
+            if (!code) { alert('반 코드를 입력해주세요!'); return; }
+            currentClassCode = code;
+            document.getElementById('class-code-screen').classList.add('hidden-content');
+            const badge = document.getElementById('class-code-badge');
+            badge.textContent = '📌 ' + code;
+            badge.classList.remove('hidden');
+            startListening();
+        };
+
+        const initFirebase = () => {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('여기에')) {
+                const banner = document.getElementById('setup-banner');
+                if (banner) banner.classList.remove('hidden-content');
+                document.getElementById('class-code-screen').classList.add('hidden-content');
+            }
+            window.updateUI();
+            // 반 코드 입력 후 startListening 호출 (startWithClassCode에서 처리)
+        };
+
+        // --- States ---
+        let currentStage = '도입';
+        let step = 1;
+        let summaryStep = 1;
+        let simTime = -1;
+        let isSimulating = false;
+        let showAnswer = false;
+        let showSummaryAnswer = false;
+        let simInterval = null;
+
+        const carData = { ga: { pos: [0, 1, 4, 9, 16, 25], speed: [1, 3, 5, 7, 9] }, na: { pos: [0, 9, 16, 21, 24, 25], speed: [9, 7, 5, 3, 1] } };
+        const inputs = { gaPos: Array(6).fill(''), naPos: Array(6).fill(''), gaDist: Array(5).fill(''), gaSpeed: Array(5).fill(''), naDist: Array(5).fill(''), naSpeed: Array(5).fill('') };
+        const userPoints = { ga: Array(5).fill(null), na: Array(5).fill(null) };
+        const summaryInput = { 1: '', 2: '' };
+        window.studentSubmissions = {};
+
+        const cloudChar = `<svg width="220" height="220" viewBox="0 0 240 240"><rect x="95" y="195" width="22" height="35" rx="8" fill="#FACC15" stroke="#EAB308" stroke-width="2" /><rect x="123" y="195" width="22" height="35" rx="8" fill="#FACC15" stroke="#EAB308" stroke-width="2" /><rect x="95" y="190" width="22" height="15" fill="white" /><rect x="123" y="190" width="22" height="15" fill="white" /><path d="M120 45C80 45 55 75 55 110C55 120 57 130 60 140C45 145 35 160 35 175C35 195 50 210 70 210H170C190 210 205 195 205 175C205 160 195 145 180 140C183 130 185 120 185 110C185 75 160 45 120 45Z" fill="#FACC15" stroke="#EAB308" stroke-width="2"/><circle cx="110" cy="115" r="3" fill="#334155" /><circle cx="130" cy="115" r="3" fill="#334155" /><circle cx="120" cy="128" r="4.5" fill="none" stroke="#334155" stroke-width="2.5" /><line x1="170" y1="135" x2="195" y2="90" stroke="#0EA5E9" stroke-width="12" stroke-linecap="round"/><circle cx="195" cy="80" r="32" fill="white" stroke="#94A3B8" stroke-width="5" opacity="0.95"/><circle cx="195" cy="80" r="22" fill="#BAE6FD" opacity="0.4"/></svg>`;
+
+        // UI Helpers
+        window.getGuideMessage = () => {
+            if (currentStage === '도입') return "안녕! 나는 너의 실험을 도와줄 구름이야! 오늘은 직선상에서 속력이 변하는 운동을 분석해 볼 거야. 준비됐니?";
+            if (currentStage === '활동하기') {
+                if (step === 1) return "시뮬레이션 시작 버튼을 눌러 자동차의 움직임을 관찰하고, 처음 위치를 기준으로 두 장난감 자동차의 이동 거리를 기록해 보자!";
+                if (step === 2) return "두 자동차의 5초까지의 이동 거리를 보고, 1 초마다 이동한 구간 거리와 속력을 계산해서 표에 기록해 보자.";
+                if (step === 3) return "표에 적은 구간 속력을 그래프에 점으로 찍어보자. 속력은 시간 구간의 가운데에 표시하는 거 잊지 마!";
+            }
+            if (currentStage === '정리') {
+                if (summaryStep === 1) return "활동한 내용을 바탕으로 질문에 답해 보자!";
+                if (summaryStep === 2) return "모든 내용을 다 적었다면 결과 확인하기 버튼을 눌러줘!";
+            }
+            return "";
+        };
+
+        const renderTrack = (label, carColor, data, currentSim, showAll = false) => {
+            let carHTML = data.map((p, i) => {
+                const isVisible = showAll || (currentSim === -1 ? i === 0 : i <= currentSim);
+                return `<div class="absolute bottom-6 transition-all duration-500 ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}" style="left: calc(${p * 4}% + 16px); transform: translateX(-50%); z-index: 20;"><div class="relative flex flex-col items-center"><span class="mb-1 text-[10px] font-black text-slate-500 bg-white/90 border border-slate-200 px-1.5 rounded shadow-sm text-center text-center">${i}초</span><svg width="44" height="28" viewBox="0 0 44 28" class="text-center"><path d="M5,22 L39,22 L39,14 C39,10 34,7 28,7 L16,7 C10,7 5,10 5,14 Z" fill="${carColor}" stroke="#333" stroke-width="1.5" /><circle cx="12" cy="22" r="4.5" fill="#333" /><circle cx="32" cy="22" r="4.5" fill="#333" /></svg></div></div>`;
+            }).join('');
+            let rulerHTML = [...Array(26).keys()].map(v => `<div class="absolute top-0 w-px bg-slate-400 ${v % 5 === 0 ? 'h-4' : 'h-2'}" style="left: ${v * 4}%"></div>`).join('');
+            return `<div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-8 relative overflow-hidden text-center text-center text-center text-center text-center"><div class="text-sm font-black text-left text-slate-500">${label}</div><div class="relative h-24 w-full px-4 text-center"><div class="absolute left-4 top-0 bottom-8 border-l-2 border-slate-300 z-10"><span class="absolute -top-6 left-0 text-[10px] font-bold text-slate-400 bg-white px-1 text-center text-center">처음 위치</span></div><div class="absolute bottom-8 left-4 right-4 h-1.5 bg-slate-300 rounded-full text-center text-center text-center">${rulerHTML}${[0, 5, 10, 15, 20, 25].map(v => `<div class="absolute top-4 flex flex-col items-center" style="left: ${v * 4}%"><span class="text-[11px] text-slate-500 font-bold text-center text-center">${v}cm</span></div>`).join('')}</div><div class="relative h-full text-center text-center text-center text-center text-center">${carHTML}</div></div></div>`;
+        };
+
+        const renderGraphUI = (car, points, showAns = false) => {
+            return `
+            <div class="graph-area-box text-center">
+                <div class="graph-wrapper text-center">
+                    <span class="axis-label-y text-center text-center">속력(cm/s)</span>
+                    <span class="axis-label-x text-center text-center">시간(s)</span>
+                    ${[0, 2, 4, 6, 8, 10].map(y => `
+                        <div class="absolute w-full border-t text-center text-center" style="bottom: ${y * 10}%; border-style: ${y === 0 ? 'solid' : 'dashed'}; border-color: ${y === 0 ? '#334155' : '#e2e8f0'};"></div>
+                        <span class="tick-y text-center text-center" style="bottom: ${y * 10}%;">${y}</span>
+                    `).join('')}
+                    ${[1, 2, 3, 4, 5].map(x => `
+                        <div class="absolute h-full border-l text-center text-center" style="left: ${x * 20}%; border-style: dashed; border-color: #f1f5f9;"></div>
+                        <span class="tick-x text-center text-center" style="left: ${x * 20}%;">${x}</span>
+                    `).join('')}
+                    <div class="graph-box-border text-center"></div>
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none text-center" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        ${points.map((v, i) => v !== null ? `<circle cx="${i * 20 + 10}" cy="${100 - v * 10}" r="4" fill="${car === 'ga' ? '#3b82f6' : '#f97316'}" />` : '').join('')}
+                        ${points.filter(v => v !== null).length > 1 ? `<polyline fill="none" stroke="${car === 'ga' ? '#3b82f6' : '#f97316'}" stroke-width="2.5" stroke-dasharray="4" points="${points.map((val, idx) => val !== null ? `${idx * 20 + 10},${100 - val * 10}` : null).filter(p => p !== null).join(' ')}" />` : ''}
+                        ${showAns ? `<polyline fill="none" stroke="${car === 'ga' ? '#059669' : '#ea580c'}" stroke-width="4" stroke-linecap="round" class="animate-draw text-center" points="${car === 'ga' ? "10,90 30,70 50,50 70,30 90,10" : "10,10 30,30 50,50 70,70 90,90"}" />` : ''}
+                    </svg>
+                    <div class="absolute inset-0 cursor-crosshair text-center" onclick="window.handleGraphClick('${car}', event)"></div>
+                </div>
+                <p class="guide-text-bottom text-center">그래프 내부를 클릭하여 점을 찍어보세요!</p>
+            </div>
+            `;
+        };
+
+        window.updateUI = () => {
+            document.getElementById('intro-section').classList.toggle('hidden-content', currentStage !== '도입');
+            document.getElementById('activity-section').classList.toggle('hidden-content', currentStage !== '활동하기');
+            document.getElementById('summary-section').classList.toggle('hidden-content', currentStage !== '정리');
+            document.getElementById('results-section').classList.toggle('hidden-content', currentStage !== '결과 확인');
+
+            document.querySelectorAll('.stage-btn').forEach(btn => {
+                const isActive = btn.dataset.stage === currentStage;
+                btn.className = `stage-btn px-6 py-1.5 rounded-lg font-bold transition-all ${isActive ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`;
+            });
+
+            if (currentStage === '도입') {
+                document.getElementById('intro-tracks').innerHTML = renderTrack('(가) 자동차', '#10b981', carData.ga.pos, -1, true) + renderTrack('(나) 자동차', '#f97316', carData.na.pos, -1, true);
+            } else if (currentStage === '활동하기') {
+                const titleEl = document.getElementById('activity-title');
+                if (step === 1) titleEl.innerHTML = `<i data-lucide="table" class="text-emerald-500"></i> 이동 거리 구하기`;
+                else if (step === 2) titleEl.innerHTML = `<i data-lucide="edit-3" class="text-emerald-500"></i> 구간별 거리와 속력 구하기`;
+                else titleEl.innerHTML = `<i data-lucide="trending-up" class="text-emerald-500"></i> 시간-속력 그래프 나타내기`;
+                document.getElementById('step-indicators').innerHTML = [1, 2, 3].map(i => `<div class="w-3.5 h-3.5 rounded-full ${step >= i ? 'bg-emerald-500' : 'bg-slate-200'}"></div>`).join('');
+                document.getElementById('guide-message').innerText = window.getGuideMessage();
+                document.getElementById('char-container').innerHTML = cloudChar;
+                document.getElementById('sim-controls').classList.toggle('hidden-content', step !== 1);
+                document.getElementById('activity-tracks').innerHTML = renderTrack('(가) 자동차', '#10b981', carData.ga.pos, simTime, step > 1) + renderTrack('(나) 자동차', '#f97316', carData.na.pos, simTime, step > 1);
+                const area = document.getElementById('step-content-area');
+                if (step === 1) area.innerHTML = `<table class="w-full border-collapse bg-white shadow-sm rounded-2xl overflow-hidden text-base text-center"><thead><tr class="bg-slate-100 font-bold text-slate-700"><th>시간(s)</th>${[0,1,2,3,4,5].map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody><tr><td class="font-bold bg-emerald-50 text-emerald-700">(가) 거리 (cm)</td>${inputs.gaPos.map((v, i) => `<td><input type="number" value="${v}" oninput="window.updateInputData('gaPos', ${i}, this.value)" ${showAnswer ? 'disabled' : ''} class="w-full h-12 text-center border-none ${showAnswer ? 'bg-white font-black text-emerald-600' : 'bg-slate-50/50'} text-lg"></td>`).join('')}</tr><tr><td class="font-bold bg-orange-50 text-orange-700">(나) 거리 (cm)</td>${inputs.naPos.map((v, i) => `<td><input type="number" value="${v}" oninput="window.updateInputData('naPos', ${i}, this.value)" ${showAnswer ? 'disabled' : ''} class="w-full h-12 text-center border-none ${showAnswer ? 'bg-white font-black text-orange-600' : 'bg-slate-50/50'} text-lg"></td>`).join('')}</tr></tbody></table>`;
+                else if (step === 2) area.innerHTML = `<table class="w-full border-collapse bg-white shadow-sm rounded-2xl overflow-hidden text-sm text-center"><thead><tr class="bg-slate-100 font-bold text-slate-700"><th>시간(s)</th>${['0~1','1~2','2~3','3~4','4~5'].map(t=>`<th>${t}</th>`).join('')}<th>구분</th></tr></thead><tbody><tr class="bg-emerald-50/30"><td>구간 이동 거리(cm)</td>${inputs.gaDist.map((v, i) => `<td><input type="number" value="${v}" oninput="window.updateInputData('gaDist', ${i}, this.value)" ${showAnswer ? 'disabled' : ''} class="w-full h-12 text-center border-none"></td>`).join('')}<td rowSpan="2" class="bg-emerald-500 text-white font-black text-center text-xs">가 자동차</td></tr><tr class="bg-emerald-50/30 border-b-2 border-emerald-200"><td>구간 속력(cm/s)</td>${inputs.gaSpeed.map((v, i) => `<td><input type="number" value="${v}" oninput="window.updateInputData('gaSpeed', ${i}, this.value)" ${showAnswer ? 'disabled' : ''} class="w-full h-12 text-center border-none"></td>`).join('')}</tr><tr class="bg-orange-50/30"><td>구간 이동 거리(cm)</td>${inputs.naDist.map((v, i) => `<td><input type="number" value="${v}" oninput="window.updateInputData('naDist', ${i}, this.value)" ${showAnswer ? 'disabled' : ''} class="w-full h-12 text-center border-none"></td>`).join('')}<td rowSpan="2" class="bg-orange-500 text-white font-black text-center text-xs text-center text-center">나 자동차</td></tr><tr class="bg-orange-50/30"><td>구간 속력(cm/s)</td>${inputs.naSpeed.map((v, i) => `<td><input type="number" value="${v}" oninput="window.updateInputData('naSpeed', ${i}, this.value)" ${showAnswer ? 'disabled' : ''} class="w-full h-12 text-center border-none"></td>`).join('')}</tr></tbody></table>`;
+                else area.innerHTML = `<div class="graph-outer-container text-center text-center text-center">${renderGraphUI('ga', userPoints.ga, showAnswer)}${renderGraphUI('na', userPoints.na, showAnswer)}</div>`;
+                document.getElementById('reset-inputs-btn').classList.toggle('hidden-content', !showAnswer);
+            } else if (currentStage === '정리') {
+                document.getElementById('summary-num').innerText = summaryStep;
+                document.getElementById('summary-question').innerText = summaryStep === 1 ? "두 장난감 자동차의 구간 이동 거리는 시간에 따라 어떻게 변하는지 이야기해 보자." : "두 장난감 자동차의 시간-속력 그래프를 비교하여 공통점과 차이점을 설명해 보자.";
+                const answerBox = document.getElementById('summary-answer-box');
+                answerBox.classList.toggle('hidden-content', !showSummaryAnswer);
+                document.getElementById('summary-answer-text').innerText = summaryStep === 1 ? "(가) 자동차는 구간 이동 거리가 일정하게 증가하고, (나) 자동차는 같은 시간 동안 이동한 거리는 일정하게 감소합니다." : "공통점: 속력이 일정하게 변합니다. 차이점: (가) 자동차의 그래프는 시간에 따라 속력이 일정하게 증가하고 (나) 자동차의 그래프는 시간에 따라 속력이 일정하게 감소한다.";
+                document.getElementById('summary-guide-msg').innerText = window.getGuideMessage();
+                document.getElementById('summary-char-container').innerHTML = cloudChar;
+                // textarea 값 강제 초기화 (이전/다음 이동 시 이전 내용 남는 것 방지)
+                const textarea = document.getElementById('summary-textarea');
+                textarea.value = summaryInput[summaryStep] || '';
+                const nextBtn = document.getElementById('sum-next-btn');
+                if (summaryStep === 1) nextBtn.innerHTML = `다음 질문으로 <i data-lucide="chevron-right" class="w-7 h-7"></i>`;
+                else nextBtn.innerHTML = `결과 확인하기 <i data-lucide="layout-dashboard" class="w-7 h-7"></i>`;
+            }
+            lucide.createIcons();
+        };
+
+        // Handlers
+        window.changeStage = (s) => { currentStage = s; if(s!=='결과 확인') {step=1; summaryStep=1; showAnswer=false; showSummaryAnswer=false; simTime=-1;} window.updateUI(); };
+        window.startSim = () => { if(isSimulating) return; simTime=0; isSimulating=true; window.updateUI(); let iv = setInterval(() => { simTime++; if(simTime>=5) {clearInterval(iv); isSimulating=false;} window.updateUI(); }, 800); };
+        window.resetSim = () => { simTime=-1; isSimulating=false; window.updateUI(); };
+        window.updateInputData = (key, idx, val) => { inputs[key][idx] = val; };
+        window.toggleAnswer = () => { if(showAnswer) {showAnswer=false;} else {showAnswer=true; if(step === 1) { inputs.gaPos = carData.ga.pos.map(String); inputs.naPos = carData.na.pos.map(String); } else if(step === 2) { inputs.gaDist = [1, 3, 5, 7, 9].map(String); inputs.gaSpeed = [1, 3, 5, 7, 9].map(String); inputs.naDist = [9, 7, 5, 3, 1].map(String); inputs.naSpeed = [9, 7, 5, 3, 1].map(String); } } window.updateUI(); };
+        window.resetInputs = () => { inputs.gaPos.fill(''); inputs.naPos.fill(''); userPoints.ga.fill(null); userPoints.na.fill(null); showAnswer = false; window.updateUI(); };
+        window.prevStep = () => { if(step > 1) step--; else window.changeStage('도입'); window.updateUI(); };
+        window.nextStep = () => { if(step < 3) step++; else window.changeStage('정리'); window.updateUI(); };
+        window.toggleSummaryAnswer = () => { showSummaryAnswer = !showSummaryAnswer; window.updateUI(); };
+        window.resetSummaryText = () => { summaryInput[summaryStep] = ''; document.getElementById('summary-textarea').value = ''; showSummaryAnswer = false; window.updateUI(); };
+        window.prevSummary = () => { if(summaryStep > 1) { summaryStep--; showSummaryAnswer = false; window.updateUI(); } else { step = 3; window.changeStage('활동하기'); } };
+        window.nextSummary = () => { if(summaryStep < 2) { summaryStep++; showSummaryAnswer = false; window.updateUI(); } else { window.changeStage('결과 확인'); } };
+        window.handleGraphClick = (c, e) => { const r = e.currentTarget.getBoundingClientRect(); const idx = Math.floor((e.clientX - r.left) / (r.width / 5)); const val = Math.round((1 - (e.clientY - r.top) / r.height) * 10); if (idx >= 0 && idx < 5) { userPoints[c][idx] = Math.max(0, Math.min(10, val)); window.updateUI(); } };
+
+        // Google Sheets polling
+        let pollingInterval = null;
+
+        const startListening = () => {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('여기에')) {
+                const listEl = document.getElementById('student-list');
+                if (listEl) listEl.innerHTML = `<div class="text-center py-6 text-amber-500 font-bold text-sm">⚠️ Apps Script URL을 설정해주세요</div>`;
+                return;
+            }
+            fetchSubmissions();
+            // 자동 폴링 제거 - 수동 새로고침 버튼으로만 갱신
+        };
+
+        const fetchSubmissions = async () => {
+            if (!currentClassCode) return;
+            try {
+                const res = await fetch(APPS_SCRIPT_URL + '?action=getAll&classCode=' + encodeURIComponent(currentClassCode) + '&t=' + Date.now());
+                const result = await res.json();
+                if (result.status !== 'ok') throw new Error(result.message);
+
+                const listEl = document.getElementById('student-list');
+                const countEl = document.getElementById('student-count');
+                const submissions = result.data;
+
+                if (!submissions || submissions.length === 0) {
+                    listEl.innerHTML = `<div class="text-center py-10 opacity-30 font-bold">제출 기록 없음</div>`;
+                    countEl.innerText = "0명";
+                    return;
+                }
+
+                countEl.innerText = `${submissions.length}명`;
+                listEl.innerHTML = "";
+                submissions.reverse().forEach(data => {
+                    window.studentSubmissions[data.studentName] = data;
+                    const item = document.createElement('div');
+                    item.className = "flex items-center gap-1 mb-2";
+                    item.innerHTML = `
+                        <button onclick="window.renderStudentDetail('${data.studentName}')" class="flex-1 p-4 rounded-2xl border-2 border-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition-all text-left shadow-sm">
+                            <span class="font-black text-slate-800 block">${data.studentName}</span>
+                            <span class="text-xs text-slate-400">${data.timestamp}</span>
+                        </button>
+                        <button onclick="window.deleteOne('${data.studentName}')" title="삭제" class="p-2 rounded-xl hover:bg-red-50 text-slate-300 hover:text-red-400 transition-all flex-shrink-0">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>`;
+                    listEl.appendChild(item);
+                });
+                lucide.createIcons();
+            } catch (err) {
+                console.error("데이터 불러오기 실패:", err);
+                const listEl = document.getElementById('student-list');
+                if (listEl) listEl.innerHTML = `<div class="text-center py-6 text-red-400 font-bold text-sm">불러오기 실패<br><button onclick="window.fetchSubmissions()" class="mt-2 text-blue-500 underline">다시 시도</button></div>`;
+            }
+        };
+        window.fetchSubmissions = fetchSubmissions;
+
+        window.deleteOne = async (name) => {
+            if (!currentClassCode) { alert('반 코드가 설정되지 않았습니다.'); return; }
+            if (!confirm(`"${name}" 학생의 제출 기록을 삭제할까요?`)) return;
+            try {
+                const res = await fetch(APPS_SCRIPT_URL + '?action=deleteOne&classCode=' + encodeURIComponent(currentClassCode) + '&studentName=' + encodeURIComponent(name));
+                const result = await res.json();
+                if (result.status !== 'ok') throw new Error(result.message);
+                const detailEl = document.getElementById('detail-view');
+                detailEl.innerHTML = `<div class="text-center space-y-6"><i data-lucide="mouse-pointer-click" class="w-16 h-16 mx-auto opacity-20"></i><h3 class="text-2xl font-black">학생을 선택하여 결과를 확인하세요</h3></div>`;
+                detailEl.className = "bg-white rounded-[2.5rem] shadow-sm border h-[calc(100vh-180px)] overflow-y-auto p-10 flex flex-col items-center justify-center text-slate-300";
+                lucide.createIcons();
+                await fetchSubmissions();
+            } catch (err) { alert('삭제 실패: ' + err.message); }
+        };
+
+        window.deleteAll = async () => {
+            if (!currentClassCode) { alert('반 코드가 설정되지 않았습니다.'); return; }
+            if (!confirm(`[${currentClassCode}] 반의 모든 제출 기록을 초기화할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
+            try {
+                const res = await fetch(APPS_SCRIPT_URL + '?action=deleteAll&classCode=' + encodeURIComponent(currentClassCode));
+                const result = await res.json();
+                if (result.status !== 'ok') throw new Error(result.message);
+                const detailEl = document.getElementById('detail-view');
+                detailEl.innerHTML = `<div class="text-center space-y-6"><i data-lucide="mouse-pointer-click" class="w-16 h-16 mx-auto opacity-20"></i><h3 class="text-2xl font-black">학생을 선택하여 결과를 확인하세요</h3></div>`;
+                detailEl.className = "bg-white rounded-[2.5rem] shadow-sm border h-[calc(100vh-180px)] overflow-y-auto p-10 flex flex-col items-center justify-center text-slate-300";
+                lucide.createIcons();
+                await fetchSubmissions();
+            } catch (err) { alert('초기화 실패: ' + err.message); }
+        };
+
+        window.renderStudentDetail = (name) => {
+            const raw = window.studentSubmissions[name];
+            // Sheets에서 온 flat 데이터를 구조화
+            const data = {
+                studentName: raw.studentName,
+                timestamp: raw.timestamp,
+                activityData: {
+                    gaPos: raw.gaPos ? raw.gaPos.split(',') : [],
+                    naPos: raw.naPos ? raw.naPos.split(',') : [],
+                    gaDist: raw.gaDist ? raw.gaDist.split(',') : [],
+                    gaSpeed: raw.gaSpeed ? raw.gaSpeed.split(',') : [],
+                    naDist: raw.naDist ? raw.naDist.split(',') : [],
+                    naSpeed: raw.naSpeed ? raw.naSpeed.split(',') : [],
+                },
+                graphData: {
+                    ga: raw.gaPoints ? raw.gaPoints.split(',').map(v => v === '' ? null : Number(v)) : Array(5).fill(null),
+                    na: raw.naPoints ? raw.naPoints.split(',').map(v => v === '' ? null : Number(v)) : Array(5).fill(null),
+                },
+                summaryData: { 1: raw.summary1 || '', 2: raw.summary2 || '' }
+            };
+            const detailEl = document.getElementById('detail-view');
+            detailEl.className = "bg-white rounded-[2.5rem] shadow-sm border h-[calc(100vh-180px)] overflow-y-auto p-10 space-y-12 text-slate-800 text-left text-center text-center";
+            const intervals = ['0~1','1~2','2~3','3~4','4~5'];
+            detailEl.innerHTML = `
+                <div class="border-b pb-8 flex justify-between items-center">
+                    <div><h2 class="text-4xl font-black">${data.studentName} 학생 결과</h2><p class="text-slate-400 font-bold mt-2">제출: ${data.timestamp}</p></div>
+                    <button onclick="window.changeStage('결과 확인')" class="p-3 bg-slate-100 rounded-full text-slate-400 hover:bg-slate-200"><i data-lucide="x"></i></button>
+                </div>
+                <div class="space-y-12">
+
+                    <!-- 표1: 이동 거리 -->
+                    <div>
+                        <h3 class="text-xl font-black text-emerald-600 mb-4 flex items-center gap-2"><i data-lucide="table" class="w-5 h-5"></i> ① 이동 거리 기록</h3>
+                        <table class="w-full border-collapse rounded-2xl overflow-hidden border text-center text-sm">
+                            <thead><tr class="bg-slate-100 font-bold"><th>구분</th>${[0,1,2,3,4,5].map(t=>`<th>${t}초</th>`).join('')}</tr></thead>
+                            <tbody>
+                                <tr><td class="font-bold bg-blue-50 text-blue-700 p-3">(가) 거리(cm)</td>${data.activityData.gaPos.map(v=>`<td class="p-3">${v||'-'}</td>`).join('')}</tr>
+                                <tr><td class="font-bold bg-orange-50 text-orange-700 p-3">(나) 거리(cm)</td>${data.activityData.naPos.map(v=>`<td class="p-3">${v||'-'}</td>`).join('')}</tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 표2: 구간 거리 & 속력 -->
+                    <div>
+                        <h3 class="text-xl font-black text-emerald-600 mb-4 flex items-center gap-2"><i data-lucide="table-2" class="w-5 h-5"></i> ② 구간 거리 & 속력</h3>
+                        <table class="w-full border-collapse rounded-2xl overflow-hidden border text-center text-sm">
+                            <thead><tr class="bg-slate-100 font-bold"><th>구분</th>${intervals.map(t=>`<th>${t}초</th>`).join('')}<th>자동차</th></tr></thead>
+                            <tbody>
+                                <tr class="bg-blue-50/40"><td class="p-3">구간 이동 거리(cm)</td>${data.activityData.gaDist.map(v=>`<td class="p-3">${v||'-'}</td>`).join('')}<td rowspan="2" class="bg-blue-500 text-white font-black text-xs">(가)</td></tr>
+                                <tr class="bg-blue-50/40 border-b-2 border-blue-200"><td class="p-3">구간 속력(cm/s)</td>${data.activityData.gaSpeed.map(v=>`<td class="p-3">${v||'-'}</td>`).join('')}</tr>
+                                <tr class="bg-orange-50/40"><td class="p-3">구간 이동 거리(cm)</td>${data.activityData.naDist.map(v=>`<td class="p-3">${v||'-'}</td>`).join('')}<td rowspan="2" class="bg-orange-500 text-white font-black text-xs">(나)</td></tr>
+                                <tr class="bg-orange-50/40"><td class="p-3">구간 속력(cm/s)</td>${data.activityData.naSpeed.map(v=>`<td class="p-3">${v||'-'}</td>`).join('')}</tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 그래프 -->
+                    <div>
+                        <h3 class="text-xl font-black text-emerald-600 mb-4 flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5"></i> ③ 시간-속력 그래프</h3>
+                        <div class="graph-outer-container">${['ga','na'].map(c=>`<div class="flex flex-col items-center bg-slate-50 p-6 rounded-3xl"><p class="font-black text-slate-500 mb-4">${c==='ga'?'(가)':'(나)'} 자동차</p>${renderGraphUI(c, data.graphData[c])}</div>`).join('')}</div>
+                    </div>
+
+                    <!-- 정리 답변 -->
+                    <div>
+                        <h3 class="text-xl font-black text-emerald-600 mb-4 flex items-center gap-2"><i data-lucide="file-text" class="w-5 h-5"></i> ④ 정리하기 답변</h3>
+                        <div class="space-y-4">
+                            <div class="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                                <p class="text-xs font-black text-emerald-800 mb-2">Q1. 구간 이동 거리 변화</p>
+                                <p class="text-lg font-bold text-slate-700">${data.summaryData[1] || '(미입력)'}</p>
+                            </div>
+                            <div class="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                                <p class="text-xs font-black text-emerald-800 mb-2">Q2. 그래프 공통점·차이점</p>
+                                <p class="text-lg font-bold text-slate-700">${data.summaryData[2] || '(미입력)'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            `;
+            lucide.createIcons(); detailEl.scrollTop = 0;
+        };
+
+        // 정리하기 textarea 실시간 저장
+        document.addEventListener('input', (e) => {
+            if (e.target.id === 'summary-textarea') {
+                summaryInput[summaryStep] = e.target.value;
+            }
+        });
+
+        // Init
+        initFirebase();
+    </script>
+</body>
+</html>
